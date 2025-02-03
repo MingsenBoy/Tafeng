@@ -1,0 +1,171 @@
+---
+title: "Tafeng_project"
+author: "Vincent"
+date: "2023-12-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo =   TRUE)
+rm(list=ls(all=T))
+knitr::opts_chunk$set(paged.print=FALSE, comment = NA)
+#pacman::p_load(magrittr, readr, caTools, ggplot2, dplyr, vcd)
+pacman::p_load(vcd, magrittr, readr, caTools, ggplot2, dplyr, plotly, ggrepel)
+```
+
+##### 讀進資料
+```{r}
+Z = read_csv("data/ta_feng_all_months_merged.csv") %>% 
+  data.frame %>% setNames(c(
+    "date","cust","age","area","cat","prod","qty","cost","price"))
+load("data/tf0.rdata")# X:交易資料 A:顧客資料
+```
+
+## 市場分析
+
+### 市場區隔_地區
+1.居住Z115(南港區)、Z221 (汐止區)的顧客最多<br>
+2.其貢獻的毛利最多，購買毛利貢獻前20大品項的數量最多<br>
+##### 各地區客人分布長條圖
+```{r}
+grouped_data <- A0 %>% 
+  group_by(area) %>% 
+  summarise(unique_customers = n_distinct(cust))
+
+ggplot(grouped_data, aes(x = area, y = unique_customers, fill = area)) +
+  geom_bar(stat = "identity") +
+  labs(title = "各地區顧客分布", fill = "地區") +
+  theme_minimal()
+```
+
+##### 依地區區分的購物數量與毛利之點狀圖
+```{r fig.height=7, fig.width=10}
+col6 = c('seagreen', 'gold', 'orange', rep('red',3))
+gg_areagross = group_by(X0, area) %>% summarise(pieces = sum(pieces), gross = sum(gross)) %>% ggplot(aes(x=area, y=pieces, col=gross, label = area)) + geom_point(size=5, alpha=0.8) + scale_color_gradientn(colors=col6) + theme_bw()
+
+gg_areagross
+```
+
+### 市場區隔_年齡
+1.年齡34~44歲族群貢獻的毛利最多，購買毛利貢獻前20大品項的數量最多<br>
+
+#####  依年齡區分的購買品項數量分布點狀圖
+```{r fig.height=7, fig.width=10}
+col6 = c('seagreen', 'gold', 'orange', rep('red',3))
+gg_agegross = group_by(Z0, age) %>% summarise(solds = n(), pieces = sum(qty), gross = sum(price - cost)) %>% ggplot(aes(x=age, y=pieces, col=gross, label = age)) + geom_point(size=5, alpha=0.8) +  scale_color_gradientn(colors=col6) + theme_bw() + theme_bw()
+
+gg_agegross
+```
+
+#####  依年齡區分的毛利貢獻長條圖
+```{r fig.height=3.2, fig.width=7}
+#Z$gross = Z$price - Z$cost
+g_gross = group_by(Z0, age) %>% mutate(gross = sum(price- cost)) %>% ggplot(aes(x= age)) + geom_bar() + labs(x = "Age",y = "Gross")
+g_gross
+```
+
+
+1.34~44歲族群，購買頻率較少、平均客單價較高<br>
+2.65~69歲族群，購買頻率較高、平均客單價較低<br>
+
+#####  年齡區隔特徵泡泡圖
+```{r}
+A0 %>% filter(age!="a99") %>%    # 濾掉沒有年齡資料的顧客('a99')
+  group_by(age) %>% summarise(
+  Group.Size = n(),              # 族群人數
+  avg.Freq = mean(f),            # 平均購買次數
+  avg.Revenue = sum(f*m)/sum(f)  # 平均客單價
+  ) %>% 
+  ggplot(aes(y=avg.Freq, x=avg.Revenue)) +
+  geom_point(aes(col=age, size=Group.Size), alpha=0.5) +
+  geom_text(aes(label=age)) +
+  scale_size(range=c(5,25)) +
+  theme_bw() + theme(legend.position="none") +
+  ggtitle("年齡區隔特徵 (泡泡大小:族群人數)") + 
+  ylab("平均購買次數") + xlab("平均客單價")
+```
+
+## 目標客群
+
+##### 區域與郵遞區號對照圖
+<center>
+![Fig-2:郵遞區號](fig/zipcode.png)
+</center>
+
+##### 使用馬賽克圖檢視列連表的關聯性(Association between Categorial Variables)
+
++ 方塊大小代表該類別組合的數量
++ 紅(藍)色代表該類別組合的數量顯著小(大)於期望值
++ 期望值就是邊際機率(如上方的直條圖所示)的乘積
++ 卡方檢定(類別變數的關聯性檢定)的p值顯示在圖示最下方
++ `p-value < 2.22e-16` : `age` 與 `area` 之間有顯著的關聯性
+```{r}
+MOSA = function(formula, data) mosaic(formula, data, shade=T, 
+  margins=c(0,1,0,0), labeling_args = list(rot_labels=c(0,0,0,0)),
+  gp_labels=gpar(fontsize=9), legend_args=list(fontsize=9),
+  gp_text=gpar(fontsize=7),labeling=labeling_residuals)
+```
+
+```{r fig.height=7, fig.width=15}
+MOSA2 = function(formula, data) mosaic(formula, data, shade=T, 
+  margins=c(0,0,0,0), labeling_args = list(rot_labels=c(270,0,0,0)),
+  gp_labels=gpar(fontsize=9), legend_args=list(fontsize=9),
+  gp_text=gpar(fontsize=7),labeling=labeling_residuals)
+
+```
+
+##### 年齡和地區的關聯統計
+
+1.34~44歲族群主要居住在 Z221 (汐止)、z114 (內湖)<br>
+2.69歲族群主要居住在Z115(南港)<br>
+```{r fig.height=7, fig.width=10}
+MOSA2(~area+age, data=A0)
+```
+
+##### 年齡與購物日的關聯統計
+
+1.34~44歲族群購買行為多集中假日<br>
+2.65~69歲購買行為偏好平日，避開假日人潮<br>
+```{r fig.height=7, fig.width=10}
+#X0$wday = format(X0$date, "%u")
+X0$wday = format(X0$date, "%a")
+MOSA(~age+wday, X0)
+```
+
+##### 前十大毛利品類長條圖
+
+1.560201,100205,110401,530101 同時是前十大毛利品類,也是34~44主要購買的品類
+```{r}
+sorted_profit <- Z0 %>%
+  mutate(profit = price - cost) %>%
+  group_by(cat) %>%
+  summarise(total_profit = sum(profit)) %>%
+  arrange(desc(total_profit)) %>%
+  head(10)
+
+sorted_profit$cat <- factor(sorted_profit$cat, levels = sorted_profit$cat[order(sorted_profit$total_profit, decreasing = TRUE)])
+
+# 使用 ggplot 繪製長條圖
+ggplot(sorted_profit, aes(x = cat, y = total_profit, fill = cat)) + 
+  geom_bar(stat = "identity") +
+  labs(title = "全部品類前十大毛利總和", x = "品類", y = "毛利總和") +
+  theme_minimal()
+```
+
+##### 年齡和品類的關聯統計
+```{r fig.height=7, fig.width=10}
+top20 = tapply(Z0$qty,Z0$cat,sum) %>% sort %>% tail(20) %>% names
+MOSA2(~age+cat, Z0[Z0$cat %in% top20,])
+```
+
+
+## 策略分析
+目標族群：年齡34~44歲族群(青壯、中年人) 年齡65~69歲族群(老年人)<br>
+客群特性：<br>
+主要居住在Z221(汐止區),z114(內湖),zOthrs，z115(南港)<br>
+主要購物日為周末(青壯、中年人)、避開假日人潮(老年人)<br>
+主要購買品類為560201保健食品、110217養生茶<br>
+青壯、中年人:購買頻率較少、平均客單價較高 ->推測都集中在假日大量買、住離店家較遠<br>
+老年人:購買頻率高、平均客單價較低 ->避開假日人潮，多在平日<br>
+
+策略：提高此青壯、中年人族群的購買頻率，並維持其顧客黏著度；提高老年族群平均單價<br>
