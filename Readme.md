@@ -1,7 +1,7 @@
 # Tafeng資料集商業分析
 
 ### 資料來源
-- https://www.kaggle.com/datasets/chiranjivdas09/ta-feng-grocery-dataset/data
+- https://www.kaggle.com/datasets/chiranjivdas09/ta-feng-grocery-dataset/data  
 
 
 
